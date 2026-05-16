@@ -1,93 +1,58 @@
-# print("Welcome to the YouTube Channel Name Generator: ")
-# name = input("What is your nickname? \n")
-# topic = input("What is your channel about? \n")
-# print ("You could name your channel " + "(" + topic + " with " + name + ")")
+#i=1
+#while i<5:
+  #print("i is : {}".format(i))
+  #i=i+1
 
-# print("Welcome to my application\n")
-# age=int(input("How old are you? \n"))
+#print(list(range(1,10)))
 
-# if age >=12:
-#   print("Good. You can use the app")
-# else:
-#   print("Sorry, you can not use the app")
+#x=[1,2,3,4,5,6,7,8,9,10]
+#out=[]
+#for num in x:
+  #out.append(num**2)
+#print(out)
 
-#Code block by indentation
+  
+#print([num**2 for num in x]  )
 
 
-# num=float(input("Enter a number \n"))
-# if num>0:
-#  print("Positive number")
-# elif num<0:
-#  print("Negative number")
-# else:
-#  print("Zero")
+#def my_func(prame1):
+  #print(prame1)
 
 
 
+#my_func("Ahmed")
 
 
 
-# degrees=float(input("Enter the student's degree \n"))
-# if degrees>=90:
-#   print("Excellent")
-# elif degrees>=75:
-#   print("Good")
-# elif degrees >=50:
-#   print("Acceptable")
-# else:
-#   print("Weak")
+#def my_func2(name="AG"):
+  #print("Hello {}".format(name))
 
-# chair_number=int(input("enter the number"))
-# if chair_number==21:
-#   print("You win")
-# else:
-#   print("You lose")
 
-# != == 
+#my_func2("Ahmed")
 
 
 
-
-# password="abcd"
-# password_1=input("Enter the password")
-# if password_1==password:
-#   print(" You are good")
-# else:
-#   print("Fake password")
+#def my_func2(name="AG"):
+  #print("Hello {}".format(name))
 
 
-
-# words=input("Enter the word")
-# if words=="yes":
-#   print("You write yes")
-# elif words=="no":
-#   print("You write no")
-# elif words=="maybe":
-#   print("You write maybe")
-# else:
-#   print("Fake words")
-
-
-# num=float(input("Enter the number"))
-# if num==7:
-#   print("You win")
-# else:
-#   print("You lose")
+#my_func2()
+#print(my_func2)
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
+#def seq(num):
+  #"""
+  #This function takes a number and returns the square of the number
+  #num: int
+  #return: int
+  
+  
+  #"""
+  #return num**2
+#output=seq(2)
+#print(output)
+#help(seq)
 
 
 # myarea=input("Choose your area (ABC),(DE),(FG)\n")
@@ -164,10 +129,6 @@
 
 
 # input(""" """)
-
-
-
-
 
 
 
@@ -1365,17 +1326,100 @@
 # mynames=input().append(names)
 # print(names)
 
-names=input("Enter the names of attendees sprated by a comma:nter the names of attendees").split(",")
+
+
+
+
+
+
+
+
+
+
+#names=input("Enter the names of attendees sprated by a comma:nter the names of attendees").split(",")
 #mynames=names.split(",")
-allnames=[]
-allnames.append(names)
-print(allnames)
-for person in allnames[0]:
-    print(f"\n{person}")
-    confirm=input("Is this person attending? (yes/no):").lower()
-    if confirm=="yes":
-       print("Attendance confirmed\n------")
-    elif confirm=="no":
-        print("Attendance not confirmed\n------")
-    else:
-        print("Invalid choice. Please enter yes or no.")
+#allnames=[]
+#allnames.append(names)
+#print(allnames)
+#for person in allnames[0]:
+#    print(f"\n{person}")
+#    confirm=input("Is this person attending? (yes/no):").lower()
+#    if confirm=="yes":
+#       print("Attendance confirmed\n------")
+#    elif confirm=="no":
+#        print("Attendance not confirmed\n------")
+#    else:
+#        print("Invalid choice. Please enter yes or no.")
+
+
+
+
+
+
+
+
+from flask import Flask, request, jsonify
+from datetime import datetime, timedelta
+
+app = Flask(__name__)
+
+@app.route('/free_slots', methods=['POST'])
+def free_slots():
+    data = request.json
+    
+    booked = data.get('booked_slots', [])
+    duration = int(data.get('duration', 60))
+    work_start = data.get('work_start', '09:00')
+    work_end = data.get('work_end', '21:00')
+    requested_time = data.get('requested_time', '')
+
+    fmt = '%H:%M'
+    ws = datetime.strptime(work_start, fmt)
+    we = datetime.strptime(work_end, fmt)
+    rt = datetime.strptime(requested_time, fmt)
+    rt_end = rt + timedelta(minutes=duration)
+
+    booked_parsed = []
+    for b in booked:
+        s_dt = datetime.fromisoformat(b['start'].replace('Z', '+00:00'))
+        s_str = (s_dt + timedelta(hours=3)).strftime('%H:%M')
+        s = datetime.strptime(s_str, fmt)
+        
+        e_dt = datetime.fromisoformat(b['end'].replace('Z', '+00:00'))
+        e_str = (e_dt + timedelta(hours=3)).strftime('%H:%M')
+        e = datetime.strptime(e_str, fmt)
+        booked_parsed.append((s, e))
+
+    conflict = False
+    for (s, e) in booked_parsed:
+        if rt < e and rt_end > s:
+            conflict = True
+            break
+
+    free = []
+    current = ws
+    while current + timedelta(minutes=duration) <= we:
+        current_end = current + timedelta(minutes=duration)
+        is_free = True
+        
+        for (s, e) in booked_parsed:
+            if current < e and current_end > s:
+                is_free = False
+                break
+        if is_free:
+            free.append(current.strftime(fmt))
+        current += timedelta(minutes=duration)
+
+    return jsonify({
+        'conflict': conflict,
+        'free_slots': free
+    })
+
+if __name__ == '__main__':
+    app.run(host='0.0.0.0', port=8080)
+
+
+
+
+
+
