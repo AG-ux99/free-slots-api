@@ -1414,9 +1414,60 @@ def free_slots():
         'conflict': conflict,
         'free_slots': free
     })
+import requests as req
 
+VF_API_KEY = "VF.DM.6a1fa0a61170c413c675898c.p1cnh386niQf8SFI"
+VF_VERSION_ID = "main"
+VF_PROJECT_ID = "6a1f9adbaf8ad1542a2b58b1"
+
+sessions = {}
+
+@app.route('/whatsapp', methods=['POST'])
+def whatsapp():
+    from_number = request.form.get('From', '')
+    body = request.form.get('Body', '').strip()
+    
+    user_id = from_number.replace('whatsapp:', '').replace('+', '')
+    
+    is_new = user_id not in sessions or body.lower() in ['hello', 'hi', 'start']
+    
+    if is_new:
+        sessions[user_id] = True
+        vf_body = {
+            "action": {"type": "event", "payload": {"event": {"name": "start_booking_2"}}},
+            "config": {"tts": False, "stripSSML": True}
+        }
+    else:
+        vf_body = {
+            "action": {"type": "text", "payload": body},
+            "config": {"tts": False, "stripSSML": True}
+        }
+    
+    headers = {
+        "Authorization": VF_API_KEY,
+        "Content-Type": "application/json",
+        "versionID": VF_VERSION_ID
+    }
+    
+    url = f"https://general-runtime.voiceflow.com/state/user/{user_id}/interact"
+    response = req.post(url, json=vf_body, headers=headers)
+    data = response.json()
+    
+    messages = []
+    for item in data:
+        if item.get('type') == 'text':
+            messages.append(item['payload']['message'])
+    
+    reply = '\n\n'.join(messages) if messages else ''
+    
+    from twilio.twiml.messaging_response import MessagingResponse
+    resp = MessagingResponse()
+    if reply:
+        resp.message(reply)
+    return str(resp)
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=8080)
+
 
 
 
