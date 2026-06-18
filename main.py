@@ -1429,7 +1429,8 @@ def whatsapp():
     
     user_id = from_number.replace('whatsapp:', '').replace('+', '')
     
-    is_new = user_id not in sessions or body.lower() in ['hello', 'hi', 'start']
+    #is_new = user_id not in sessions or body.lower() in ['hello', 'hi', 'start']
+     is_new = body.lower() in ['hello', 'hi', 'start']
     
     if is_new:
         sessions[user_id] = True
