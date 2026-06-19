@@ -1365,13 +1365,35 @@ app = Flask(__name__)
 
 @app.route('/free_slots', methods=['POST'])
 def free_slots():
-    data = request.json
-    
-    booked = data.get('booked_slots', [])
-    duration = int(data.get('duration', 60))
-    work_start = data.get('work_start', '09:00')
-    work_end = data.get('work_end', '21:00')
-    requested_time = data.get('requested_time', '')
+data = request.json
+requested_time = data.get('requested_time', '')
+preferred_date = data.get('preferred_date', '')
+duration = int(data.get('duration', 60))
+work_start = data.get('work_start', '09:00')
+work_end = data.get('work_end', '21:00')
+
+# Fetch booked slots from Google Calendar
+booked = []
+try:
+    service = get_calendar_service()
+    day_start = f"{preferred_date}T00:00:00+03:00"
+    day_end = f"{preferred_date}T23:59:59+03:00"
+    events = service.events().list(
+        calendarId='primary',
+        timeMin=day_start,
+        timeMax=day_end,
+        singleEvents=True
+    ).execute()
+    for e in events.get('items', []):
+        if 'dateTime' in e.get('start', {}):
+            booked.append({'start': e['start']['dateTime'], 'end': e['end']['dateTime']})
+except:
+    pass
+    #booked = data.get('booked_slots', [])
+    #duration = int(data.get('duration', 60))
+    #work_start = data.get('work_start', '09:00')
+    #work_end = data.get('work_end', '21:00')
+    #requested_time = data.get('requested_time', '')
 
     fmt = '%H:%M'
     ws = datetime.strptime(work_start, fmt)
