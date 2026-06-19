@@ -1365,12 +1365,12 @@ app = Flask(__name__)
 
 @app.route('/free_slots', methods=['POST'])
 def free_slots():
-data = request.json
-requested_time = data.get('requested_time', '')
-preferred_date = data.get('preferred_date', '')
-duration = int(data.get('duration', 60))
-work_start = data.get('work_start', '09:00')
-work_end = data.get('work_end', '21:00')
+   data = request.json
+   requested_time = data.get('requested_time', '')
+   preferred_date = data.get('preferred_date', '')
+   duration = int(data.get('duration', 60))
+   work_start = data.get('work_start', '09:00')
+   work_end = data.get('work_end', '21:00')
 
 # Fetch booked slots from Google Calendar
 booked = []
