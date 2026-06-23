@@ -1399,11 +1399,11 @@ def free_slots():
     booked_parsed = []
     for b in booked:
         s_dt = datetime.fromisoformat(b['start'].replace('Z', '+00:00'))
-        s_str = (s_dt + timedelta(hours=3)).strftime('%H:%M')
+        s_str = s_dt.astimezone().strftime('%H:%M')
         s = datetime.strptime(s_str, fmt)
 
         e_dt = datetime.fromisoformat(b['end'].replace('Z', '+00:00'))
-        e_str = (e_dt + timedelta(hours=3)).strftime('%H:%M')
+        e_str = e_dt.astimezone().strftime('%H:%M')
         e = datetime.strptime(e_str, fmt)
         booked_parsed.append((s, e))
 
