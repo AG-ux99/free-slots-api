@@ -1388,7 +1388,7 @@ def free_slots():
             if 'dateTime' in e.get('start', {}):
                 booked.append({'start': e['start']['dateTime'], 'end': e['end']['dateTime']})
     except Exception as ex:
-    print(f"Calendar error: {ex}")
+         print(f"Calendar error: {ex}")
         
 
     fmt = '%H:%M'
