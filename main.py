@@ -1387,8 +1387,9 @@ def free_slots():
         for e in events.get('items', []):
             if 'dateTime' in e.get('start', {}):
                 booked.append({'start': e['start']['dateTime'], 'end': e['end']['dateTime']})
-    except:
-        pass
+    except Exception as ex:
+    print(f"Calendar error: {ex}")
+        
 
     fmt = '%H:%M'
     ws = datetime.strptime(work_start, fmt)
