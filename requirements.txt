@@ -1,3 +1,5 @@
 flask
 requests
 twilio
+google-api-python-client
+google-auth
