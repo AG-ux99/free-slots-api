@@ -1441,9 +1441,9 @@ def free_slots():
         current += timedelta(minutes=duration)
 
     return jsonify({
-        'conflict': conflict,
-        'free_slots': free
-    })
+       'conflict': 'true' if conflict else 'false',
+       'free_slots': free
+})
 import requests as req
 
 VF_API_KEY = "VF.DM.6a1fa0a61170c413c675898c.p1cnh386niQf8SFI"
