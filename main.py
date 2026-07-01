@@ -1441,7 +1441,8 @@ def free_slots():
         current += timedelta(minutes=duration)
 
     return jsonify({
-       'conflict': 'true' if conflict else 'false',
+       'conflict': True if conflict else False
+       #'conflict': 'true' if conflict else 'false',
        'free_slots': free
 })
 import requests as req
