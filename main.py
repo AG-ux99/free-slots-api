@@ -1593,7 +1593,7 @@ def free_slots():
         day_end = day_start + timedelta(days=1) - timedelta(seconds=1)
 
         events = service.events().list(
-            calendarId='primary',
+            calendarId='killuazoldyck192956@gmail.com',
             timeMin=day_start.isoformat(),
             timeMax=day_end.isoformat(),
             singleEvents=True,
