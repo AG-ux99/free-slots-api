@@ -1515,6 +1515,215 @@
 
 
 
+# from flask import Flask, request, jsonify
+# from datetime import datetime, timedelta
+# from zoneinfo import ZoneInfo
+# import json
+# import os
+# import logging
+# from google.oauth2 import service_account
+# from googleapiclient.discovery import build
+# import requests as req
+# from twilio.twiml.messaging_response import MessagingResponse
+
+# app = Flask(__name__)
+# logging.basicConfig(level=logging.INFO)
+# logger = logging.getLogger(__name__)
+
+# # Egypt timezone - handled explicitly instead of relying on server's local tz
+# CAIRO_TZ = ZoneInfo("Africa/Cairo")
+
+
+# def get_calendar_service():
+#     creds_json = os.environ.get('GOOGLE_CREDENTIALS')
+#     if not creds_json:
+#         raise RuntimeError("GOOGLE_CREDENTIALS env var is not set")
+#     creds_data = json.loads(creds_json)
+#     creds = service_account.Credentials.from_service_account_info(
+#         creds_data,
+#         scopes=['https://www.googleapis.com/auth/calendar']
+#     )
+#     return build('calendar', 'v3', credentials=creds)
+
+
+# @app.route('/free_slots', methods=['POST'])
+# def free_slots():
+#     data = request.get_json(silent=True) or {}
+#     logger.info(f"Incoming /free_slots request: {data}")
+
+#     # ---- 1. Validate inputs BEFORE any strptime call, so we never crash with 500 ----
+#     preferred_date = str(data.get('preferred_date', '')).strip()
+#     requested_time = str(data.get('requested_time', '')).strip()
+#     duration = int(data.get('duration', 60) or 60)
+#     work_start = str(data.get('work_start', '09:00')).strip()
+#     work_end = str(data.get('work_end', '21:00')).strip()
+
+#     if not preferred_date:
+#         logger.warning("Missing preferred_date in request")
+#         return jsonify({'error': 'missing_preferred_date', 'conflict': False, 'free_slots': []}), 200
+
+#     if not requested_time:
+#         logger.warning("Missing requested_time in request")
+#         return jsonify({'error': 'missing_requested_time', 'conflict': False, 'free_slots': []}), 200
+
+#     try:
+#         datetime.strptime(preferred_date, '%Y-%m-%d')
+#     except ValueError:
+#         logger.error(f"Bad preferred_date format: {preferred_date!r}")
+#         return jsonify({'error': 'bad_date_format', 'conflict': False, 'free_slots': []}), 200
+
+#     fmt = '%H:%M'
+#     try:
+#         ws = datetime.strptime(work_start, fmt)
+#         we = datetime.strptime(work_end, fmt)
+#         rt = datetime.strptime(requested_time, fmt)
+#     except ValueError as ex:
+#         logger.error(f"Bad time format -> work_start={work_start!r} work_end={work_end!r} "
+#                       f"requested_time={requested_time!r} ({ex})")
+#         return jsonify({'error': 'bad_time_format', 'conflict': False, 'free_slots': []}), 200
+
+#     rt_end = rt + timedelta(minutes=duration)
+
+#     # ---- 2. Fetch booked slots from Google Calendar, with real Cairo-timezone handling ----
+#     booked_parsed = []
+#     try:
+#         service = get_calendar_service()
+
+#         day_start = datetime.strptime(preferred_date, '%Y-%m-%d').replace(tzinfo=CAIRO_TZ)
+#         day_end = day_start + timedelta(days=1) - timedelta(seconds=1)
+
+#         events = service.events().list(
+#             calendarId='killuazoldyck192956@gmail.com',
+#             timeMin=day_start.isoformat(),
+#             timeMax=day_end.isoformat(),
+#             singleEvents=True,
+#             orderBy='startTime'
+#         ).execute()
+
+#         for e in events.get('items', []):
+#             start_raw = e.get('start', {}).get('dateTime')
+#             end_raw = e.get('end', {}).get('dateTime')
+#             if not start_raw or not end_raw:
+#                 # all-day event (only 'date', no 'dateTime') - skip, handle separately if needed
+#                 continue
+#             s_dt = datetime.fromisoformat(start_raw).astimezone(CAIRO_TZ)
+#             e_dt = datetime.fromisoformat(end_raw).astimezone(CAIRO_TZ)
+#             s = datetime.strptime(s_dt.strftime(fmt), fmt)
+#             e_ = datetime.strptime(e_dt.strftime(fmt), fmt)
+#             booked_parsed.append((s, e_))
+
+#     except Exception as ex:
+#         # IMPORTANT: a calendar failure must NOT silently mean "everything is free".
+#         # We now report it explicitly so it's visible in Voiceflow / Railway logs.
+#         logger.exception(f"Calendar fetch failed: {ex}")
+#         return jsonify({'error': 'calendar_unavailable', 'conflict': False, 'free_slots': []}), 200
+
+#     # ---- 3. Conflict check for the exact requested slot ----
+#     conflict = any(rt < e_ and rt_end > s for (s, e_) in booked_parsed)
+
+#     # ---- 4. Build the list of free slots for the whole day ----
+#     free = []
+#     current = ws
+#     while current + timedelta(minutes=duration) <= we:
+#         current_end = current + timedelta(minutes=duration)
+#         if not any(current < e_ and current_end > s for (s, e_) in booked_parsed):
+#             free.append(current.strftime(fmt))
+#         current += timedelta(minutes=duration)
+
+#     return jsonify({'conflict': conflict, 'free_slots': free, 'error': None})
+
+
+# # ---------------------------------------------------------------------------
+# # WhatsApp <-> Voiceflow bridge
+# # ---------------------------------------------------------------------------
+
+# VF_API_KEY = os.environ.get('VF_API_KEY', '')
+# VF_VERSION_ID = os.environ.get('VF_VERSION_ID', 'main')
+
+# sessions = {}
+
+
+# @app.route('/whatsapp', methods=['POST'])
+# def whatsapp():
+#     from_number = request.form.get('From', '')
+#     body = request.form.get('Body', '').strip()
+#     user_id = from_number.replace('whatsapp:', '').replace('+', '')
+
+#     is_new = user_id not in sessions or body.lower() in ['hello', 'hi', 'start']
+
+#     if is_new:
+#         sessions[user_id] = True
+#         vf_body = {
+#             "action": {"type": "event", "payload": {"event": {"name": "start_booking_2"}}},
+#             "config": {"tts": False, "stripSSML": True}
+#         }
+#     else:
+#         vf_body = {
+#             "action": {"type": "text", "payload": body},
+#             "config": {"tts": False, "stripSSML": True}
+#         }
+
+#     headers = {
+#         "Authorization": VF_API_KEY,
+#         "Content-Type": "application/json",
+#         "versionID": VF_VERSION_ID
+#     }
+
+#     url = f"https://general-runtime.voiceflow.com/state/user/{user_id}/interact"
+
+#     resp_twiml = MessagingResponse()
+#     try:
+#         response = req.post(url, json=vf_body, headers=headers, timeout=15)
+#         response.raise_for_status()
+#         data = response.json()
+#     except Exception as ex:
+#         logger.exception(f"Voiceflow call failed: {ex}")
+#         resp_twiml.message("عذرًا، حدث خطأ مؤقت. حاول مرة أخرى بعد لحظات.")
+#         return str(resp_twiml)
+
+#     messages = []
+#     for item in data:
+#         if item.get('type') == 'text':
+#             messages.append(item.get('payload', {}).get('message', ''))
+
+#     reply = '\n\n'.join(m for m in messages if m)
+#     if reply:
+#         resp_twiml.message(reply)
+#     return str(resp_twiml)
+
+
+# if __name__ == '__main__':
+#     app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 8080)))
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 from flask import Flask, request, jsonify
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
@@ -1551,7 +1760,6 @@ def free_slots():
     data = request.get_json(silent=True) or {}
     logger.info(f"Incoming /free_slots request: {data}")
 
-    # ---- 1. Validate inputs BEFORE any strptime call, so we never crash with 500 ----
     preferred_date = str(data.get('preferred_date', '')).strip()
     requested_time = str(data.get('requested_time', '')).strip()
     duration = int(data.get('duration', 60) or 60)
@@ -1584,7 +1792,6 @@ def free_slots():
 
     rt_end = rt + timedelta(minutes=duration)
 
-    # ---- 2. Fetch booked slots from Google Calendar, with real Cairo-timezone handling ----
     booked_parsed = []
     try:
         service = get_calendar_service()
@@ -1604,7 +1811,6 @@ def free_slots():
             start_raw = e.get('start', {}).get('dateTime')
             end_raw = e.get('end', {}).get('dateTime')
             if not start_raw or not end_raw:
-                # all-day event (only 'date', no 'dateTime') - skip, handle separately if needed
                 continue
             s_dt = datetime.fromisoformat(start_raw).astimezone(CAIRO_TZ)
             e_dt = datetime.fromisoformat(end_raw).astimezone(CAIRO_TZ)
@@ -1613,15 +1819,11 @@ def free_slots():
             booked_parsed.append((s, e_))
 
     except Exception as ex:
-        # IMPORTANT: a calendar failure must NOT silently mean "everything is free".
-        # We now report it explicitly so it's visible in Voiceflow / Railway logs.
         logger.exception(f"Calendar fetch failed: {ex}")
         return jsonify({'error': 'calendar_unavailable', 'conflict': False, 'free_slots': []}), 200
 
-    # ---- 3. Conflict check for the exact requested slot ----
     conflict = any(rt < e_ and rt_end > s for (s, e_) in booked_parsed)
 
-    # ---- 4. Build the list of free slots for the whole day ----
     free = []
     current = ws
     while current + timedelta(minutes=duration) <= we:
@@ -1633,12 +1835,8 @@ def free_slots():
     return jsonify({'conflict': conflict, 'free_slots': free, 'error': None})
 
 
-# ---------------------------------------------------------------------------
-# WhatsApp <-> Voiceflow bridge
-# ---------------------------------------------------------------------------
-
-VF_API_KEY = os.environ.get('VF_API_KEY', '')
-VF_VERSION_ID = os.environ.get('VF_VERSION_ID', 'main')
+VF_API_KEY = "VF.DM.6a1fa0a61170c413c675898c.p1cnh386niQf8SFI"
+VF_VERSION_ID = "main"
 
 sessions = {}
 
@@ -1694,5 +1892,3 @@ def whatsapp():
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 8080)))
-
-
