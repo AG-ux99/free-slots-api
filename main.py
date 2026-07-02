@@ -1358,159 +1358,159 @@
 
 
 
-# from flask import Flask, request, jsonify
-# from datetime import datetime, timedelta
-# import json
-# import os
-# from google.oauth2 import service_account
-# from googleapiclient.discovery import build
+ from flask import Flask, request, jsonify
+ from datetime import datetime, timedelta
+ import json
+ import os
+ from google.oauth2 import service_account
+ from googleapiclient.discovery import build
 
 
-# app = Flask(__name__)
+ app = Flask(__name__)
 
-# @app.route('/free_slots', methods=['POST'])
-# def free_slots():
-#     data = request.json
-#     requested_time = data.get('requested_time', '')
-#     preferred_date = data.get('preferred_date', '')
-#     duration = int(data.get('duration', 60))
-#     work_start = data.get('work_start', '09:00')
-#     work_end = data.get('work_end', '21:00')
+ @app.route('/free_slots', methods=['POST'])
+ def free_slots():
+     data = request.json
+     requested_time = data.get('requested_time', '')
+     preferred_date = data.get('preferred_date', '')
+     duration = int(data.get('duration', 60))
+     work_start = data.get('work_start', '09:00')
+     work_end = data.get('work_end', '21:00')
 
-#     # Fetch booked slots from Google Calendar
-#     booked = []
-#     try:
-#         from google.oauth2 import service_account
-#         creds_json = os.environ.get('GOOGLE_CREDENTIALS')
-#         creds_data = json.loads(creds_json)
-#         creds = service_account.Credentials.from_service_account_info(
-#         creds_data,
-#         scopes=['https://www.googleapis.com/auth/calendar']
-#         )
-#         #from google.oauth2.credentials import Credentials
-#         #from googleapiclient.discovery import build
-#         #import json, os
-#         #creds_json = os.environ.get('GOOGLE_CREDENTIALS')
-#         #creds_data = json.loads(creds_json)
-#         #creds = Credentials(
-#         #token=creds_data['token'],
-#         #refresh_token=creds_data['refresh_token'],
-#         #token_uri=creds_data['token_uri'],
-#         #client_id=creds_data['client_id'],
-#         #client_secret=creds_data['client_secret']
-#         #)
-#         service = build('calendar', 'v3', credentials=creds)
-#         day_start = f"{preferred_date}T00:00:00+03:00"
-#         day_end = f"{preferred_date}T23:59:59+03:00"
-#         events = service.events().list(
-#             calendarId='primary',
-#             timeMin=day_start,
-#             timeMax=day_end,
-#             singleEvents=True
-#         ).execute()
-#         for e in events.get('items', []):
-#             if 'dateTime' in e.get('start', {}):
-#                 booked.append({'start': e['start']['dateTime'], 'end': e['end']['dateTime']})
-#     except Exception as ex:
-#          print(f"Calendar error: {ex}")
+     # Fetch booked slots from Google Calendar
+     booked = []
+     try:
+         from google.oauth2 import service_account
+         creds_json = os.environ.get('GOOGLE_CREDENTIALS')
+         creds_data = json.loads(creds_json)
+         creds = service_account.Credentials.from_service_account_info(
+         creds_data,
+         scopes=['https://www.googleapis.com/auth/calendar']
+         )
+         #from google.oauth2.credentials import Credentials
+         #from googleapiclient.discovery import build
+         #import json, os
+         #creds_json = os.environ.get('GOOGLE_CREDENTIALS')
+         #creds_data = json.loads(creds_json)
+         #creds = Credentials(
+         #token=creds_data['token'],
+         #refresh_token=creds_data['refresh_token'],
+         #token_uri=creds_data['token_uri'],
+         #client_id=creds_data['client_id'],
+         #client_secret=creds_data['client_secret']
+         #)
+         service = build('calendar', 'v3', credentials=creds)
+         day_start = f"{preferred_date}T00:00:00+03:00"
+         day_end = f"{preferred_date}T23:59:59+03:00"
+         events = service.events().list(
+             calendarId='primary',
+             timeMin=day_start,
+             timeMax=day_end,
+             singleEvents=True
+         ).execute()
+         for e in events.get('items', []):
+             if 'dateTime' in e.get('start', {}):
+                 booked.append({'start': e['start']['dateTime'], 'end': e['end']['dateTime']})
+     except Exception as ex:
+          print(f"Calendar error: {ex}")
         
 
-#     fmt = '%H:%M'
-#     ws = datetime.strptime(work_start, fmt)
-#     we = datetime.strptime(work_end, fmt)
-#     rt = datetime.strptime(requested_time, fmt)
-#     rt_end = rt + timedelta(minutes=duration)
+     fmt = '%H:%M'
+     ws = datetime.strptime(work_start, fmt)
+     we = datetime.strptime(work_end, fmt)
+     rt = datetime.strptime(requested_time, fmt)
+     rt_end = rt + timedelta(minutes=duration)
 
-#     booked_parsed = []
-#     for b in booked:
-#         s_dt = datetime.fromisoformat(b['start'].replace('Z', '+00:00'))
-#         s_str = s_dt.astimezone().strftime('%H:%M')
-#         s = datetime.strptime(s_str, fmt)
+     booked_parsed = []
+     for b in booked:
+         s_dt = datetime.fromisoformat(b['start'].replace('Z', '+00:00'))
+         s_str = s_dt.astimezone().strftime('%H:%M')
+         s = datetime.strptime(s_str, fmt)
 
-#         e_dt = datetime.fromisoformat(b['end'].replace('Z', '+00:00'))
-#         e_str = e_dt.astimezone().strftime('%H:%M')
-#         e = datetime.strptime(e_str, fmt)
-#         booked_parsed.append((s, e))
+         e_dt = datetime.fromisoformat(b['end'].replace('Z', '+00:00'))
+         e_str = e_dt.astimezone().strftime('%H:%M')
+         e = datetime.strptime(e_str, fmt)
+         booked_parsed.append((s, e))
 
-#     conflict = False
-#     for (s, e) in booked_parsed:
-#         if rt < e and rt_end > s:
-#             conflict = True
-#             break
+     conflict = False
+     for (s, e) in booked_parsed:
+         if rt < e and rt_end > s:
+             conflict = True
+             break
 
-#     free = []
-#     current = ws
-#     while current + timedelta(minutes=duration) <= we:
-#         current_end = current + timedelta(minutes=duration)
-#         is_free = True
+     free = []
+     current = ws
+     while current + timedelta(minutes=duration) <= we:
+         current_end = current + timedelta(minutes=duration)
+         is_free = True
 
-#         for (s, e) in booked_parsed:
-#             if current < e and current_end > s:
-#                 is_free = False
-#                 break
-#         if is_free:
-#             free.append(current.strftime(fmt))
-#         current += timedelta(minutes=duration)
+         for (s, e) in booked_parsed:
+             if current < e and current_end > s:
+                 is_free = False
+                 break
+         if is_free:
+             free.append(current.strftime(fmt))
+         current += timedelta(minutes=duration)
 
-#     return jsonify({
-#        'conflict': True if conflict else False,
-#        #'conflict': 'true' if conflict else 'false',
-#        'free_slots': free
-# })
-# import requests as req
+     return jsonify({
+        'conflict': True if conflict else False,
+        #'conflict': 'true' if conflict else 'false',
+        'free_slots': free
+ })
+ import requests as req
 
-# VF_API_KEY = "VF.DM.6a1fa0a61170c413c675898c.p1cnh386niQf8SFI"
-# VF_VERSION_ID = "main"
-# VF_PROJECT_ID = "6a1f9adbaf8ad1542a2b58b1"
+ VF_API_KEY = "VF.DM.6a1fa0a61170c413c675898c.p1cnh386niQf8SFI"
+ VF_VERSION_ID = "main"
+ VF_PROJECT_ID = "6a1f9adbaf8ad1542a2b58b1"
 
-# sessions = {}
+ sessions = {}
 
-# @app.route('/whatsapp', methods=['POST'])
-# def whatsapp():
-#     from_number = request.form.get('From', '')
-#     body = request.form.get('Body', '').strip()
+ @app.route('/whatsapp', methods=['POST'])
+ def whatsapp():
+     from_number = request.form.get('From', '')
+     body = request.form.get('Body', '').strip()
     
-#     user_id = from_number.replace('whatsapp:', '').replace('+', '')
+     user_id = from_number.replace('whatsapp:', '').replace('+', '')
     
-#     #is_new = user_id not in sessions or body.lower() in ['hello', 'hi', 'start']
-#     is_new = body.lower() in ['hello', 'hi', 'start']
+     #is_new = user_id not in sessions or body.lower() in ['hello', 'hi', 'start']
+     is_new = body.lower() in ['hello', 'hi', 'start']
     
-#     if is_new:
-#         sessions[user_id] = True
-#         vf_body = {
-#             "action": {"type": "event", "payload": {"event": {"name": "start_booking_2"}}},
-#             "config": {"tts": False, "stripSSML": True}
-#         }
-#     else:
-#         vf_body = {
-#             "action": {"type": "text", "payload": body},
-#             "config": {"tts": False, "stripSSML": True}
-#         }
+     if is_new:
+         sessions[user_id] = True
+         vf_body = {
+             "action": {"type": "event", "payload": {"event": {"name": "start_booking_2"}}},
+             "config": {"tts": False, "stripSSML": True}
+         }
+     else:
+         vf_body = {
+             "action": {"type": "text", "payload": body},
+             "config": {"tts": False, "stripSSML": True}
+         }
     
-#     headers = {
-#         "Authorization": VF_API_KEY,
-#         "Content-Type": "application/json",
-#         "versionID": VF_VERSION_ID
-#     }
+     headers = {
+         "Authorization": VF_API_KEY,
+         "Content-Type": "application/json",
+         "versionID": VF_VERSION_ID
+     }
     
-#     url = f"https://general-runtime.voiceflow.com/state/user/{user_id}/interact"
-#     response = req.post(url, json=vf_body, headers=headers)
-#     data = response.json()
+     url = f"https://general-runtime.voiceflow.com/state/user/{user_id}/interact"
+     response = req.post(url, json=vf_body, headers=headers)
+     data = response.json()
     
-#     messages = []
-#     for item in data:
-#         if item.get('type') == 'text':
-#             messages.append(item['payload']['message'])
+     messages = []
+     for item in data:
+         if item.get('type') == 'text':
+             messages.append(item['payload']['message'])
     
-#     reply = '\n\n'.join(messages) if messages else ''
+     reply = '\n\n'.join(messages) if messages else ''
     
-#     from twilio.twiml.messaging_response import MessagingResponse
-#     resp = MessagingResponse()
-#     if reply:
-#         resp.message(reply)
-#     return str(resp)
-# if __name__ == '__main__':
-#     app.run(host='0.0.0.0', port=8080)
+     from twilio.twiml.messaging_response import MessagingResponse
+     resp = MessagingResponse()
+     if reply:
+         resp.message(reply)
+     return str(resp)
+ if __name__ == '__main__':
+     app.run(host='0.0.0.0', port=8080)
 
 
 
@@ -1915,145 +1915,145 @@
 
 
 
-from flask import Flask, request, jsonify
-from datetime import datetime, timedelta
-from zoneinfo import ZoneInfo
-import json
-import os
-from google.oauth2 import service_account
-from googleapiclient.discovery import build
+# from flask import Flask, request, jsonify
+# from datetime import datetime, timedelta
+# from zoneinfo import ZoneInfo
+# import json
+# import os
+# from google.oauth2 import service_account
+# from googleapiclient.discovery import build
 
 
-app = Flask(__name__)
+# app = Flask(__name__)
 
-CAIRO_TZ = ZoneInfo("Africa/Cairo")
+# CAIRO_TZ = ZoneInfo("Africa/Cairo")
 
-@app.route('/free_slots', methods=['POST'])
-def free_slots():
-    data = request.json
-    requested_time = data.get('requested_time', '')
-    preferred_date = data.get('preferred_date', '')
-    duration = int(data.get('duration', 60))
-    work_start = data.get('work_start', '09:00')
-    work_end = data.get('work_end', '21:00')
+# @app.route('/free_slots', methods=['POST'])
+# def free_slots():
+#     data = request.json
+#     requested_time = data.get('requested_time', '')
+#     preferred_date = data.get('preferred_date', '')
+#     duration = int(data.get('duration', 60))
+#     work_start = data.get('work_start', '09:00')
+#     work_end = data.get('work_end', '21:00')
 
-    # Fetch booked slots from Google Calendar
-    booked = []
-    try:
-        from google.oauth2 import service_account
-        creds_json = os.environ.get('GOOGLE_CREDENTIALS')
-        creds_data = json.loads(creds_json)
-        creds = service_account.Credentials.from_service_account_info(
-        creds_data,
-        scopes=['https://www.googleapis.com/auth/calendar']
-        )
-        service = build('calendar', 'v3', credentials=creds)
-        day_start = f"{preferred_date}T00:00:00+03:00"
-        day_end = f"{preferred_date}T23:59:59+03:00"
-        events = service.events().list(
-            calendarId='killuazoldyck192956@gmail.com',
-            timeMin=day_start,
-            timeMax=day_end,
-            singleEvents=True
-        ).execute()
-        for e in events.get('items', []):
-            if 'dateTime' in e.get('start', {}):
-                booked.append({'start': e['start']['dateTime'], 'end': e['end']['dateTime']})
-    except Exception as ex:
-         print(f"Calendar error: {ex}")
+#     # Fetch booked slots from Google Calendar
+#     booked = []
+#     try:
+#         from google.oauth2 import service_account
+#         creds_json = os.environ.get('GOOGLE_CREDENTIALS')
+#         creds_data = json.loads(creds_json)
+#         creds = service_account.Credentials.from_service_account_info(
+#         creds_data,
+#         scopes=['https://www.googleapis.com/auth/calendar']
+#         )
+#         service = build('calendar', 'v3', credentials=creds)
+#         day_start = f"{preferred_date}T00:00:00+03:00"
+#         day_end = f"{preferred_date}T23:59:59+03:00"
+#         events = service.events().list(
+#             calendarId='killuazoldyck192956@gmail.com',
+#             timeMin=day_start,
+#             timeMax=day_end,
+#             singleEvents=True
+#         ).execute()
+#         for e in events.get('items', []):
+#             if 'dateTime' in e.get('start', {}):
+#                 booked.append({'start': e['start']['dateTime'], 'end': e['end']['dateTime']})
+#     except Exception as ex:
+#          print(f"Calendar error: {ex}")
         
 
-    fmt = '%H:%M'
-    ws = datetime.strptime(work_start, fmt)
-    we = datetime.strptime(work_end, fmt)
-    rt = datetime.strptime(requested_time, fmt)
-    rt_end = rt + timedelta(minutes=duration)
+#     fmt = '%H:%M'
+#     ws = datetime.strptime(work_start, fmt)
+#     we = datetime.strptime(work_end, fmt)
+#     rt = datetime.strptime(requested_time, fmt)
+#     rt_end = rt + timedelta(minutes=duration)
 
-    booked_parsed = []
-    for b in booked:
-        s_dt = datetime.fromisoformat(b['start'].replace('Z', '+00:00'))
-        s_str = s_dt.astimezone(CAIRO_TZ).strftime('%H:%M')
-        s = datetime.strptime(s_str, fmt)
+#     booked_parsed = []
+#     for b in booked:
+#         s_dt = datetime.fromisoformat(b['start'].replace('Z', '+00:00'))
+#         s_str = s_dt.astimezone(CAIRO_TZ).strftime('%H:%M')
+#         s = datetime.strptime(s_str, fmt)
 
-        e_dt = datetime.fromisoformat(b['end'].replace('Z', '+00:00'))
-        e_str = e_dt.astimezone(CAIRO_TZ).strftime('%H:%M')
-        e = datetime.strptime(e_str, fmt)
-        booked_parsed.append((s, e))
+#         e_dt = datetime.fromisoformat(b['end'].replace('Z', '+00:00'))
+#         e_str = e_dt.astimezone(CAIRO_TZ).strftime('%H:%M')
+#         e = datetime.strptime(e_str, fmt)
+#         booked_parsed.append((s, e))
 
-    conflict = False
-    for (s, e) in booked_parsed:
-        if rt < e and rt_end > s:
-            conflict = True
-            break
+#     conflict = False
+#     for (s, e) in booked_parsed:
+#         if rt < e and rt_end > s:
+#             conflict = True
+#             break
 
-    free = []
-    current = ws
-    while current + timedelta(minutes=duration) <= we:
-        current_end = current + timedelta(minutes=duration)
-        is_free = True
+#     free = []
+#     current = ws
+#     while current + timedelta(minutes=duration) <= we:
+#         current_end = current + timedelta(minutes=duration)
+#         is_free = True
 
-        for (s, e) in booked_parsed:
-            if current < e and current_end > s:
-                is_free = False
-                break
-        if is_free:
-            free.append(current.strftime(fmt))
-        current += timedelta(minutes=duration)
+#         for (s, e) in booked_parsed:
+#             if current < e and current_end > s:
+#                 is_free = False
+#                 break
+#         if is_free:
+#             free.append(current.strftime(fmt))
+#         current += timedelta(minutes=duration)
 
-    return jsonify({
-       'conflict': True if conflict else False,
-       'free_slots': free
-})
-import requests as req
+#     return jsonify({
+#        'conflict': True if conflict else False,
+#        'free_slots': free
+# })
+# import requests as req
 
-VF_API_KEY = "VF.DM.6a1fa0a61170c413c675898c.p1cnh386niQf8SFI"
-VF_VERSION_ID = "main"
-VF_PROJECT_ID = "6a1f9adbaf8ad1542a2b58b1"
+# VF_API_KEY = "VF.DM.6a1fa0a61170c413c675898c.p1cnh386niQf8SFI"
+# VF_VERSION_ID = "main"
+# VF_PROJECT_ID = "6a1f9adbaf8ad1542a2b58b1"
 
-sessions = {}
+# sessions = {}
 
-@app.route('/whatsapp', methods=['POST'])
-def whatsapp():
-    from_number = request.form.get('From', '')
-    body = request.form.get('Body', '').strip()
+# @app.route('/whatsapp', methods=['POST'])
+# def whatsapp():
+#     from_number = request.form.get('From', '')
+#     body = request.form.get('Body', '').strip()
     
-    user_id = from_number.replace('whatsapp:', '').replace('+', '')
+#     user_id = from_number.replace('whatsapp:', '').replace('+', '')
     
-    is_new = body.lower() in ['hello', 'hi', 'start']
+#     is_new = body.lower() in ['hello', 'hi', 'start']
     
-    if is_new:
-        sessions[user_id] = True
-        vf_body = {
-            "action": {"type": "event", "payload": {"event": {"name": "start_booking_2"}}},
-            "config": {"tts": False, "stripSSML": True}
-        }
-    else:
-        vf_body = {
-            "action": {"type": "text", "payload": body},
-            "config": {"tts": False, "stripSSML": True}
-        }
+#     if is_new:
+#         sessions[user_id] = True
+#         vf_body = {
+#             "action": {"type": "event", "payload": {"event": {"name": "start_booking_2"}}},
+#             "config": {"tts": False, "stripSSML": True}
+#         }
+#     else:
+#         vf_body = {
+#             "action": {"type": "text", "payload": body},
+#             "config": {"tts": False, "stripSSML": True}
+#         }
     
-    headers = {
-        "Authorization": VF_API_KEY,
-        "Content-Type": "application/json",
-        "versionID": VF_VERSION_ID
-    }
+#     headers = {
+#         "Authorization": VF_API_KEY,
+#         "Content-Type": "application/json",
+#         "versionID": VF_VERSION_ID
+#     }
     
-    url = f"https://general-runtime.voiceflow.com/state/user/{user_id}/interact"
-    response = req.post(url, json=vf_body, headers=headers)
-    data = response.json()
+#     url = f"https://general-runtime.voiceflow.com/state/user/{user_id}/interact"
+#     response = req.post(url, json=vf_body, headers=headers)
+#     data = response.json()
     
-    messages = []
-    for item in data:
-        if item.get('type') == 'text':
-            messages.append(item['payload']['message'])
+#     messages = []
+#     for item in data:
+#         if item.get('type') == 'text':
+#             messages.append(item['payload']['message'])
     
-    reply = '\n\n'.join(messages) if messages else ''
+#     reply = '\n\n'.join(messages) if messages else ''
     
-    from twilio.twiml.messaging_response import MessagingResponse
-    resp = MessagingResponse()
-    if reply:
-        resp.message(reply)
-    return str(resp)
-if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=8080)
+#     from twilio.twiml.messaging_response import MessagingResponse
+#     resp = MessagingResponse()
+#     if reply:
+#         resp.message(reply)
+#     return str(resp)
+# if __name__ == '__main__':
+#    app.run(host='0.0.0.0', port=8080)
