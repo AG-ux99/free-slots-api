@@ -1724,131 +1724,303 @@
 
 
 
+# from flask import Flask, request, jsonify
+# from datetime import datetime, timedelta
+# from zoneinfo import ZoneInfo
+# import json
+# import os
+# import logging
+# from google.oauth2 import service_account
+# from googleapiclient.discovery import build
+# import requests as req
+# from twilio.twiml.messaging_response import MessagingResponse
+
+# app = Flask(__name__)
+# logging.basicConfig(level=logging.INFO)
+# logger = logging.getLogger(__name__)
+
+# # Egypt timezone - handled explicitly instead of relying on server's local tz
+# CAIRO_TZ = ZoneInfo("Africa/Cairo")
+
+
+# def get_calendar_service():
+#     creds_json = os.environ.get('GOOGLE_CREDENTIALS')
+#     if not creds_json:
+#         raise RuntimeError("GOOGLE_CREDENTIALS env var is not set")
+#     creds_data = json.loads(creds_json)
+#     creds = service_account.Credentials.from_service_account_info(
+#         creds_data,
+#         scopes=['https://www.googleapis.com/auth/calendar']
+#     )
+#     return build('calendar', 'v3', credentials=creds)
+
+
+# @app.route('/free_slots', methods=['POST'])
+# def free_slots():
+#     data = request.get_json(silent=True) or {}
+#     logger.info(f"Incoming /free_slots request: {data}")
+
+#     preferred_date = str(data.get('preferred_date', '')).strip()
+#     requested_time = str(data.get('requested_time', '')).strip()
+#     duration = int(data.get('duration', 60) or 60)
+#     work_start = str(data.get('work_start', '09:00')).strip()
+#     work_end = str(data.get('work_end', '21:00')).strip()
+
+#     if not preferred_date:
+#         logger.warning("Missing preferred_date in request")
+#         return jsonify({'error': 'missing_preferred_date', 'conflict': False, 'free_slots': []}), 200
+
+#     if not requested_time:
+#         logger.warning("Missing requested_time in request")
+#         return jsonify({'error': 'missing_requested_time', 'conflict': False, 'free_slots': []}), 200
+
+#     try:
+#         datetime.strptime(preferred_date, '%Y-%m-%d')
+#     except ValueError:
+#         logger.error(f"Bad preferred_date format: {preferred_date!r}")
+#         return jsonify({'error': 'bad_date_format', 'conflict': False, 'free_slots': []}), 200
+
+#     fmt = '%H:%M'
+#     try:
+#         ws = datetime.strptime(work_start, fmt)
+#         we = datetime.strptime(work_end, fmt)
+#         rt = datetime.strptime(requested_time, fmt)
+#     except ValueError as ex:
+#         logger.error(f"Bad time format -> work_start={work_start!r} work_end={work_end!r} "
+#                       f"requested_time={requested_time!r} ({ex})")
+#         return jsonify({'error': 'bad_time_format', 'conflict': False, 'free_slots': []}), 200
+
+#     rt_end = rt + timedelta(minutes=duration)
+
+#     booked_parsed = []
+#     try:
+#         service = get_calendar_service()
+
+#         day_start = datetime.strptime(preferred_date, '%Y-%m-%d').replace(tzinfo=CAIRO_TZ)
+#         day_end = day_start + timedelta(days=1) - timedelta(seconds=1)
+
+#         events = service.events().list(
+#             calendarId='killuazoldyck192956@gmail.com',
+#             timeMin=day_start.isoformat(),
+#             timeMax=day_end.isoformat(),
+#             singleEvents=True,
+#             orderBy='startTime'
+#         ).execute()
+
+#         for e in events.get('items', []):
+#             start_raw = e.get('start', {}).get('dateTime')
+#             end_raw = e.get('end', {}).get('dateTime')
+#             if not start_raw or not end_raw:
+#                 continue
+#             s_dt = datetime.fromisoformat(start_raw).astimezone(CAIRO_TZ)
+#             e_dt = datetime.fromisoformat(end_raw).astimezone(CAIRO_TZ)
+#             s = datetime.strptime(s_dt.strftime(fmt), fmt)
+#             e_ = datetime.strptime(e_dt.strftime(fmt), fmt)
+#             booked_parsed.append((s, e_))
+
+#     except Exception as ex:
+#         logger.exception(f"Calendar fetch failed: {ex}")
+#         return jsonify({'error': 'calendar_unavailable', 'conflict': False, 'free_slots': []}), 200
+
+#     conflict = any(rt < e_ and rt_end > s for (s, e_) in booked_parsed)
+
+#     free = []
+#     current = ws
+#     while current + timedelta(minutes=duration) <= we:
+#         current_end = current + timedelta(minutes=duration)
+#         if not any(current < e_ and current_end > s for (s, e_) in booked_parsed):
+#             free.append(current.strftime(fmt))
+#         current += timedelta(minutes=duration)
+
+#     return jsonify({'conflict': conflict, 'free_slots': free, 'error': None})
+
+
+# VF_API_KEY = "VF.DM.6a1fa0a61170c413c675898c.p1cnh386niQf8SFI"
+# VF_VERSION_ID = "main"
+
+# sessions = {}
+
+
+# @app.route('/whatsapp', methods=['POST'])
+# def whatsapp():
+#     from_number = request.form.get('From', '')
+#     body = request.form.get('Body', '').strip()
+#     user_id = from_number.replace('whatsapp:', '').replace('+', '')
+
+#     is_new = user_id not in sessions or body.lower() in ['hello', 'hi', 'start']
+
+#     if is_new:
+#         sessions[user_id] = True
+#         vf_body = {
+#             "action": {"type": "event", "payload": {"event": {"name": "start_booking_2"}}},
+#             "config": {"tts": False, "stripSSML": True}
+#         }
+#     else:
+#         vf_body = {
+#             "action": {"type": "text", "payload": body},
+#             "config": {"tts": False, "stripSSML": True}
+#         }
+
+#     headers = {
+#         "Authorization": VF_API_KEY,
+#         "Content-Type": "application/json",
+#         "versionID": VF_VERSION_ID
+#     }
+
+#     url = f"https://general-runtime.voiceflow.com/state/user/{user_id}/interact"
+
+#     resp_twiml = MessagingResponse()
+#     try:
+#         response = req.post(url, json=vf_body, headers=headers, timeout=15)
+#         response.raise_for_status()
+#         data = response.json()
+#     except Exception as ex:
+#         logger.exception(f"Voiceflow call failed: {ex}")
+#         resp_twiml.message("عذرًا، حدث خطأ مؤقت. حاول مرة أخرى بعد لحظات.")
+#         return str(resp_twiml)
+
+#     messages = []
+#     for item in data:
+#         if item.get('type') == 'text':
+#             messages.append(item.get('payload', {}).get('message', ''))
+
+#     reply = '\n\n'.join(m for m in messages if m)
+#     if reply:
+#         resp_twiml.message(reply)
+#     return str(resp_twiml)
+
+
+# if __name__ == '__main__':
+#     app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 8080)))
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 from flask import Flask, request, jsonify
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 import json
 import os
-import logging
 from google.oauth2 import service_account
 from googleapiclient.discovery import build
-import requests as req
-from twilio.twiml.messaging_response import MessagingResponse
+
 
 app = Flask(__name__)
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
 
-# Egypt timezone - handled explicitly instead of relying on server's local tz
 CAIRO_TZ = ZoneInfo("Africa/Cairo")
-
-
-def get_calendar_service():
-    creds_json = os.environ.get('GOOGLE_CREDENTIALS')
-    if not creds_json:
-        raise RuntimeError("GOOGLE_CREDENTIALS env var is not set")
-    creds_data = json.loads(creds_json)
-    creds = service_account.Credentials.from_service_account_info(
-        creds_data,
-        scopes=['https://www.googleapis.com/auth/calendar']
-    )
-    return build('calendar', 'v3', credentials=creds)
-
 
 @app.route('/free_slots', methods=['POST'])
 def free_slots():
-    data = request.get_json(silent=True) or {}
-    logger.info(f"Incoming /free_slots request: {data}")
+    data = request.json
+    requested_time = data.get('requested_time', '')
+    preferred_date = data.get('preferred_date', '')
+    duration = int(data.get('duration', 60))
+    work_start = data.get('work_start', '09:00')
+    work_end = data.get('work_end', '21:00')
 
-    preferred_date = str(data.get('preferred_date', '')).strip()
-    requested_time = str(data.get('requested_time', '')).strip()
-    duration = int(data.get('duration', 60) or 60)
-    work_start = str(data.get('work_start', '09:00')).strip()
-    work_end = str(data.get('work_end', '21:00')).strip()
-
-    if not preferred_date:
-        logger.warning("Missing preferred_date in request")
-        return jsonify({'error': 'missing_preferred_date', 'conflict': False, 'free_slots': []}), 200
-
-    if not requested_time:
-        logger.warning("Missing requested_time in request")
-        return jsonify({'error': 'missing_requested_time', 'conflict': False, 'free_slots': []}), 200
-
+    # Fetch booked slots from Google Calendar
+    booked = []
     try:
-        datetime.strptime(preferred_date, '%Y-%m-%d')
-    except ValueError:
-        logger.error(f"Bad preferred_date format: {preferred_date!r}")
-        return jsonify({'error': 'bad_date_format', 'conflict': False, 'free_slots': []}), 200
+        from google.oauth2 import service_account
+        creds_json = os.environ.get('GOOGLE_CREDENTIALS')
+        creds_data = json.loads(creds_json)
+        creds = service_account.Credentials.from_service_account_info(
+        creds_data,
+        scopes=['https://www.googleapis.com/auth/calendar']
+        )
+        service = build('calendar', 'v3', credentials=creds)
+        day_start = f"{preferred_date}T00:00:00+03:00"
+        day_end = f"{preferred_date}T23:59:59+03:00"
+        events = service.events().list(
+            calendarId='killuazoldyck192956@gmail.com',
+            timeMin=day_start,
+            timeMax=day_end,
+            singleEvents=True
+        ).execute()
+        for e in events.get('items', []):
+            if 'dateTime' in e.get('start', {}):
+                booked.append({'start': e['start']['dateTime'], 'end': e['end']['dateTime']})
+    except Exception as ex:
+         print(f"Calendar error: {ex}")
+        
 
     fmt = '%H:%M'
-    try:
-        ws = datetime.strptime(work_start, fmt)
-        we = datetime.strptime(work_end, fmt)
-        rt = datetime.strptime(requested_time, fmt)
-    except ValueError as ex:
-        logger.error(f"Bad time format -> work_start={work_start!r} work_end={work_end!r} "
-                      f"requested_time={requested_time!r} ({ex})")
-        return jsonify({'error': 'bad_time_format', 'conflict': False, 'free_slots': []}), 200
-
+    ws = datetime.strptime(work_start, fmt)
+    we = datetime.strptime(work_end, fmt)
+    rt = datetime.strptime(requested_time, fmt)
     rt_end = rt + timedelta(minutes=duration)
 
     booked_parsed = []
-    try:
-        service = get_calendar_service()
+    for b in booked:
+        s_dt = datetime.fromisoformat(b['start'].replace('Z', '+00:00'))
+        s_str = s_dt.astimezone(CAIRO_TZ).strftime('%H:%M')
+        s = datetime.strptime(s_str, fmt)
 
-        day_start = datetime.strptime(preferred_date, '%Y-%m-%d').replace(tzinfo=CAIRO_TZ)
-        day_end = day_start + timedelta(days=1) - timedelta(seconds=1)
+        e_dt = datetime.fromisoformat(b['end'].replace('Z', '+00:00'))
+        e_str = e_dt.astimezone(CAIRO_TZ).strftime('%H:%M')
+        e = datetime.strptime(e_str, fmt)
+        booked_parsed.append((s, e))
 
-        events = service.events().list(
-            calendarId='killuazoldyck192956@gmail.com',
-            timeMin=day_start.isoformat(),
-            timeMax=day_end.isoformat(),
-            singleEvents=True,
-            orderBy='startTime'
-        ).execute()
-
-        for e in events.get('items', []):
-            start_raw = e.get('start', {}).get('dateTime')
-            end_raw = e.get('end', {}).get('dateTime')
-            if not start_raw or not end_raw:
-                continue
-            s_dt = datetime.fromisoformat(start_raw).astimezone(CAIRO_TZ)
-            e_dt = datetime.fromisoformat(end_raw).astimezone(CAIRO_TZ)
-            s = datetime.strptime(s_dt.strftime(fmt), fmt)
-            e_ = datetime.strptime(e_dt.strftime(fmt), fmt)
-            booked_parsed.append((s, e_))
-
-    except Exception as ex:
-        logger.exception(f"Calendar fetch failed: {ex}")
-        return jsonify({'error': 'calendar_unavailable', 'conflict': False, 'free_slots': []}), 200
-
-    conflict = any(rt < e_ and rt_end > s for (s, e_) in booked_parsed)
+    conflict = False
+    for (s, e) in booked_parsed:
+        if rt < e and rt_end > s:
+            conflict = True
+            break
 
     free = []
     current = ws
     while current + timedelta(minutes=duration) <= we:
         current_end = current + timedelta(minutes=duration)
-        if not any(current < e_ and current_end > s for (s, e_) in booked_parsed):
+        is_free = True
+
+        for (s, e) in booked_parsed:
+            if current < e and current_end > s:
+                is_free = False
+                break
+        if is_free:
             free.append(current.strftime(fmt))
         current += timedelta(minutes=duration)
 
-    return jsonify({'conflict': conflict, 'free_slots': free, 'error': None})
-
+    return jsonify({
+       'conflict': True if conflict else False,
+       'free_slots': free
+})
+import requests as req
 
 VF_API_KEY = "VF.DM.6a1fa0a61170c413c675898c.p1cnh386niQf8SFI"
 VF_VERSION_ID = "main"
+VF_PROJECT_ID = "6a1f9adbaf8ad1542a2b58b1"
 
 sessions = {}
-
 
 @app.route('/whatsapp', methods=['POST'])
 def whatsapp():
     from_number = request.form.get('From', '')
     body = request.form.get('Body', '').strip()
+    
     user_id = from_number.replace('whatsapp:', '').replace('+', '')
-
-    is_new = user_id not in sessions or body.lower() in ['hello', 'hi', 'start']
-
+    
+    is_new = body.lower() in ['hello', 'hi', 'start']
+    
     if is_new:
         sessions[user_id] = True
         vf_body = {
@@ -1860,35 +2032,28 @@ def whatsapp():
             "action": {"type": "text", "payload": body},
             "config": {"tts": False, "stripSSML": True}
         }
-
+    
     headers = {
         "Authorization": VF_API_KEY,
         "Content-Type": "application/json",
         "versionID": VF_VERSION_ID
     }
-
+    
     url = f"https://general-runtime.voiceflow.com/state/user/{user_id}/interact"
-
-    resp_twiml = MessagingResponse()
-    try:
-        response = req.post(url, json=vf_body, headers=headers, timeout=15)
-        response.raise_for_status()
-        data = response.json()
-    except Exception as ex:
-        logger.exception(f"Voiceflow call failed: {ex}")
-        resp_twiml.message("عذرًا، حدث خطأ مؤقت. حاول مرة أخرى بعد لحظات.")
-        return str(resp_twiml)
-
+    response = req.post(url, json=vf_body, headers=headers)
+    data = response.json()
+    
     messages = []
     for item in data:
         if item.get('type') == 'text':
-            messages.append(item.get('payload', {}).get('message', ''))
-
-    reply = '\n\n'.join(m for m in messages if m)
+            messages.append(item['payload']['message'])
+    
+    reply = '\n\n'.join(messages) if messages else ''
+    
+    from twilio.twiml.messaging_response import MessagingResponse
+    resp = MessagingResponse()
     if reply:
-        resp_twiml.message(reply)
-    return str(resp_twiml)
-
-
+        resp.message(reply)
+    return str(resp)
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 8080)))
+    app.run(host='0.0.0.0', port=8080)
